@@ -12,10 +12,10 @@ api.interceptors.response.use(
 	(error) => {
 		if (error.response?.status === 401) {
 			// avoid redirect loop if already on login or register page
-			const currentHash = window.location.hash || "";
-			if (!currentHash.includes("/login") && !currentHash.includes("/register")) {
+			const currentPath = window.location.pathname || "";
+			if (!currentPath.includes("/login") && !currentPath.includes("/register")) {
 				localStorage.removeItem("onboardingShown");
-				window.location.hash = "#/login";
+				window.location.href = "/login";
 			}
 		}
 		return Promise.reject(error);
