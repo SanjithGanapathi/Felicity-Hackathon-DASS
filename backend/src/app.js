@@ -20,13 +20,23 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
 	.split(",")
 	.map((origin) => origin.trim())
 	.filter(Boolean);
+// match exact origins and wildcard patterns like https://*.vercel.app
+const isOriginAllowed = (origin) => {
+	return allowedOrigins.some((allowedOrigin) => {
+		if(allowedOrigin.includes("*")) {
+			const wildcardPattern = new RegExp(`^${allowedOrigin.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`);
+			return wildcardPattern.test(origin);
+		}
+		return allowedOrigin === origin;
+	});
+};
 app.use(cors({
 	origin: (origin, callback) => {
 		// allow server-to-server and tools without browser origin
 		if(!origin) {
 			return callback(null, true);
 		}
-		if(allowedOrigins.includes(origin)) {
+		if(isOriginAllowed(origin)) {
 			return callback(null, true);
 		}
 		return callback(new Error("Not allowed by CORS"));
