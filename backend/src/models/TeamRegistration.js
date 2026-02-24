@@ -68,6 +68,10 @@ const teamRegistrationSchema = new mongoose.Schema({
 	},
 	members: [teamMemberSchema],
 	invites: [inviteSchema],
+	formResponses: [{
+		question: String,
+		answer: mongoose.Schema.Types.Mixed,
+	}],
 	status: {
 		type: String,
 		enum: ["pending", "completed"],

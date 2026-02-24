@@ -18,6 +18,8 @@ const ParticipantEvents = () => {
 	const [events, setEvents] = useState([]);
 	const [trendingEvents, setTrendingEvents] = useState([]);
 	const [interestSet, setInterestSet] = useState(new Set());
+	const [followingSet, setFollowingSet] = useState(new Set());
+	const [participantType, setParticipantType] = useState(null);
 	// input filters
 	const [search, setSearch] = useState("");
 	const [type, setType] = useState("");
@@ -34,7 +36,7 @@ const ParticipantEvents = () => {
 	const [registeringId, setRegisteringId] = useState(null);
 	const { toast } = useToast();
 
-	
+
 	// send an api call to the backend to fetch all events
 	const fetchEvents = async () => {
 		setLoading(true);
@@ -85,8 +87,12 @@ const ParticipantEvents = () => {
 			const response = await api.get("/participant/me");
 			const interests = response.data?.participantProfile?.interests || [];
 			setInterestSet(new Set(interests.map((item) => String(item).toLowerCase())));
+			const following = response.data?.participantProfile?.following || [];
+			setFollowingSet(new Set(following.map((id) => String(id))));
+			setParticipantType(response.data?.participantProfile?.participantType || null);
 		} catch (err) {
 			setInterestSet(new Set());
+			setFollowingSet(new Set());
 		}
 	};
 
@@ -137,7 +143,7 @@ const ParticipantEvents = () => {
 			});
 		} catch (err) {
 			// check if the user has registered for this event and then add it to the set of registered event ids using spread op
-			if(err.response?.data?.message === "You are already registered for this event") {
+			if (err.response?.data?.message === "You are already registered for this event") {
 				setRegisteredEventIds((prev) => (prev.includes(eventId) ? prev : [...prev, eventId]));
 			}
 			toast({
@@ -271,42 +277,55 @@ const ParticipantEvents = () => {
 			) : (
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					{/* display all the fetched events and map them to a card and use the event._id to register */}
-					{events.map((event) => (
-						<Card key={event._id}>
-							<CardHeader>
-								<CardTitle>{event.name}</CardTitle>
-								<CardDescription>{formatEnumLabel(event.eventType)}</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-1 text-sm">
-								<div>Status: {event.status}</div>
-								<div>Eligibility: {formatEnumLabel(event.eligibility)}</div>
-								<div>Start: {event.startDate ? new Date(event.startDate).toLocaleDateString() : "TBD"}</div>
-								<div>Organizer: {event.organizerId?.name || "N/A"}</div>
-							</CardContent>
-							{/* do a conditional render by checking if you have already registered for an event or not */}
-							<CardFooter className="flex items-center gap-2">
-								<Button asChild variant="outline">
-									<Link to={`/participant/events/${event._id}`}>Details</Link>
-								</Button>
-								{event.isTeamEvent ? (
-									<Button asChild>
-										<Link to={`/participant/events/${event._id}`}>Team Register</Link>
+					{events.map((event) => {
+						const isRecommended = (
+							(event.organizerId?._id && followingSet.has(event.organizerId._id)) ||
+							(event.tags || []).some((tag) => interestSet.has(String(tag).toLowerCase()))
+						);
+						const isIneligible = (
+							(event.eligibility === "iiit_only" && participantType !== "IIIT") ||
+							(event.eligibility === "non_iiit_only" && participantType !== "Non-IIIT")
+						);
+						return (
+							<Card key={event._id}>
+								<CardHeader>
+									<CardTitle>{event.name}</CardTitle>
+									<CardDescription>{formatEnumLabel(event.eventType)}</CardDescription>
+									{isRecommended ? <div className="text-xs text-muted-foreground">Recommended for you</div> : null}
+								</CardHeader>
+								<CardContent className="space-y-1 text-sm">
+									<div>Status: {event.status}</div>
+									<div>Eligibility: {formatEnumLabel(event.eligibility)}</div>
+									<div>Start: {event.startDate ? new Date(event.startDate).toLocaleDateString() : "TBD"}</div>
+									<div>Organizer: {event.organizerId?.name || "N/A"}</div>
+								</CardContent>
+								{/* do a conditional render by checking if you have already registered for an event or not */}
+								<CardFooter className="flex items-center gap-2">
+									<Button asChild variant="outline">
+										<Link to={`/participant/events/${event._id}`}>Details</Link>
 									</Button>
-								) : registeredEventIds.includes(event._id) ? (
-									<Button variant="outline" disabled>
-										Registered
-									</Button>
-								) : (
-								<Button
-									onClick={() => registerForEvent(event._id)}
-									disabled={registeringId === event._id}
-								>
-									{registeringId === event._id ? "Registering..." : "Register"}
-								</Button>
-								)}
-							</CardFooter>
-						</Card>
-					))}
+									{isIneligible ? (
+										<Button variant="outline" disabled>Not eligible</Button>
+									) : event.isTeamEvent ? (
+										<Button asChild>
+											<Link to={`/participant/events/${event._id}`}>Team Register</Link>
+										</Button>
+									) : registeredEventIds.includes(event._id) ? (
+										<Button variant="outline" disabled>
+											Registered
+										</Button>
+									) : (
+										<Button
+											onClick={() => registerForEvent(event._id)}
+											disabled={registeringId === event._id}
+										>
+											{registeringId === event._id ? "Registering..." : "Register"}
+										</Button>
+									)}
+								</CardFooter>
+							</Card>
+						);
+					})}
 				</div>
 			)}
 		</div>

@@ -112,7 +112,7 @@ const ParticipantEventDetails = () => {
 		try {
 			const teamData = await fetchParticipantTeam(id);
 			setTeam(teamData.team || null);
-			if(teamData.team?.inviteCode) {
+			if (teamData.team?.inviteCode) {
 				setInviteCode(teamData.team.inviteCode);
 			}
 		} catch (err) {
@@ -128,7 +128,7 @@ const ParticipantEventDetails = () => {
 
 	// render once mounts and if the id changes or the event type changes
 	useEffect(() => {
-		if(event?.isTeamEvent) {
+		if (event?.isTeamEvent) {
 			fetchMyTeam();
 		}
 	}, [event?.isTeamEvent, id]);
@@ -136,7 +136,7 @@ const ParticipantEventDetails = () => {
 	// set default merch item and fetch my merchandise orders for the event
 	useEffect(() => {
 		const initializeMerchEvent = async () => {
-			if(event?.eventType !== "merchandise") {
+			if (event?.eventType !== "merchandise") {
 				return;
 			}
 
@@ -193,7 +193,7 @@ const ParticipantEventDetails = () => {
 
 	// return the invite emails after trimming and filtering out zero len emails
 	const parseInviteEmails = () => {
-		if(!inviteEmails.trim()) {
+		if (!inviteEmails.trim()) {
 			return [];
 		}
 		return inviteEmails
@@ -210,6 +210,10 @@ const ParticipantEventDetails = () => {
 				teamName,
 				teamSize: Number(teamSize),
 				inviteEmails: parseInviteEmails(),
+				formResponses: (event.formSchema || []).map((field) => ({
+					question: field.label,
+					answer: formAnswers[field.label] ?? (field.fieldType === "checkbox" ? [] : ""),
+				})),
 			});
 			setTeam(responseData.team);
 			setInviteCode(responseData.team?.inviteCode || "");
@@ -328,7 +332,7 @@ const ParticipantEventDetails = () => {
 	// add the payment proof url and then send a patch request 
 	const submitProofForOrder = async (orderId) => {
 		const paymentProofUrl = (proofInputs[orderId] || "").trim();
-		if(!paymentProofUrl) {
+		if (!paymentProofUrl) {
 			toast({
 				variant: "destructive",
 				title: "Missing payment proof URL",
@@ -361,12 +365,16 @@ const ParticipantEventDetails = () => {
 	const hasPendingInvite = team?.invites?.some((invite) => invite.email === currentUser?.email && invite.status === "pending");
 	const acceptedMembers = (team?.members || []).filter((member) => member.status === "accepted");
 	const isTeamCompleted = team?.status === "completed";
+	const isIneligible = (
+		(event?.eligibility === "iiit_only" && currentUser?.participantProfile?.participantType !== "IIIT") ||
+		(event?.eligibility === "non_iiit_only" && currentUser?.participantProfile?.participantType !== "Non-IIIT")
+	);
 
-	if(loading) {
+	if (loading) {
 		return <div className="grid place-items-center py-10">Loading event...</div>;
 	}
 
-	if(!event) {
+	if (!event) {
 		return <div className="border rounded-md p-6 text-center">Event not found</div>;
 	}
 
@@ -381,6 +389,7 @@ const ParticipantEventDetails = () => {
 				<div>Status: {event.status}</div>
 				<div>Team event: {event.isTeamEvent ? "Yes" : "No"}</div>
 				<div>Eligibility: {formatEnumLabel(event.eligibility)}</div>
+				{isIneligible ? <div className="text-sm font-medium">You are not eligible for this event</div> : null}
 				<div>Registration deadline: {event.registrationDeadline ? new Date(event.registrationDeadline).toLocaleString() : "N/A"}</div>
 				<div>Start: {event.startDate ? new Date(event.startDate).toLocaleString() : "N/A"}</div>
 				<div>End: {event.endDate ? new Date(event.endDate).toLocaleString() : "N/A"}</div>
@@ -388,12 +397,14 @@ const ParticipantEventDetails = () => {
 				{event.isTeamEvent ? (
 					<div>Team size: {event.minTeamSize || 2} - {event.maxTeamSize || 5}</div>
 				) : null}
-			{/* do a conditional render for a team event */}
+				{/* do a conditional render for a team event */}
 			</CardContent>
 			{event.isTeamEvent ? (
 				<CardFooter className="w-full">
 					<div className="w-full space-y-4">
-						{teamLoading ? (
+						{isIneligible ? (
+							<div className="border rounded-md p-3 text-sm">You are not eligible for this event</div>
+						) : teamLoading ? (
 							<div>Loading team details...</div>
 						) : team ? (
 							<div className="space-y-3 w-full">
@@ -438,18 +449,73 @@ const ParticipantEventDetails = () => {
 											placeholder="Enter invite code"
 										/>
 										<div className="flex items-center gap-2">
-										<Button onClick={joinByCode} disabled={teamSubmitting || !inviteCode.trim()}>
-											{teamSubmitting ? "Submitting..." : "Accept Invite"}
-										</Button>
-										<Button variant="outline" onClick={rejectInviteByCode} disabled={teamSubmitting}>
-											{teamSubmitting ? "Submitting..." : "Reject Invite"}
-										</Button>
+											<Button onClick={joinByCode} disabled={teamSubmitting || !inviteCode.trim()}>
+												{teamSubmitting ? "Submitting..." : "Accept Invite"}
+											</Button>
+											<Button variant="outline" onClick={rejectInviteByCode} disabled={teamSubmitting}>
+												{teamSubmitting ? "Submitting..." : "Reject Invite"}
+											</Button>
 										</div>
 									</div>
 								) : null}
 							</div>
 						) : (
 							<div className="w-full space-y-4">
+								{/* render form fields for team events with form schema */}
+								{(event.formSchema || []).length > 0 ? (
+									<div className="space-y-3">
+										<div className="font-medium">Registration Form</div>
+										{event.formSchema.map((field, index) => (
+											<div key={`${field.label}-${index}`} className="space-y-1">
+												<Label>{field.label}</Label>
+												{field.fieldType === "dropdown" ? (
+													<select
+														value={formAnswers[field.label] || ""}
+														onChange={(e) => setFormAnswers((prev) => ({ ...prev, [field.label]: e.target.value }))}
+														className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+													>
+														<option value="">Select</option>
+														{(field.options || []).map((option) => (
+															<option key={option} value={option}>{option}</option>
+														))}
+													</select>
+												) : field.fieldType === "checkbox" ? (
+													<div className="space-y-1">
+														{(field.options || ["Yes"]).map((option) => {
+															const selectedOptions = Array.isArray(formAnswers[field.label]) ? formAnswers[field.label] : [];
+															const isChecked = selectedOptions.includes(option);
+															return (
+																<label key={option} className="flex items-center gap-2 text-sm">
+																	<input
+																		type="checkbox"
+																		checked={isChecked}
+																		onChange={(e) => {
+																			setFormAnswers((prev) => {
+																				const existing = Array.isArray(prev[field.label]) ? prev[field.label] : [];
+																				const next = e.target.checked
+																					? [...existing, option]
+																					: existing.filter((value) => value !== option);
+																				return { ...prev, [field.label]: next };
+																			});
+																		}}
+																	/>
+																	{option}
+																</label>
+															);
+														})}
+													</div>
+												) : (
+													<Input
+														type={field.fieldType === "number" ? "number" : "text"}
+														value={formAnswers[field.label] || ""}
+														onChange={(e) => setFormAnswers((prev) => ({ ...prev, [field.label]: e.target.value }))}
+														placeholder={field.fieldType === "file" ? "Paste uploaded file URL" : ""}
+													/>
+												)}
+											</div>
+										))}
+									</div>
+								) : null}
 								<div className="space-y-2">
 									<Label htmlFor="teamName">Team Name</Label>
 									<Input id="teamName" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
@@ -474,7 +540,7 @@ const ParticipantEventDetails = () => {
 										placeholder="person1@mail.com, person2@mail.com"
 									/>
 								</div>
-								<Button onClick={createTeam} disabled={teamSubmitting || !teamName.trim()}>
+								<Button onClick={createTeam} disabled={isIneligible || teamSubmitting || !teamName.trim()}>
 									{teamSubmitting ? "Creating..." : "Create Team"}
 								</Button>
 								<div className="border-t pt-4 space-y-2">
@@ -485,14 +551,14 @@ const ParticipantEventDetails = () => {
 										onChange={(e) => setInviteCode(e.target.value)}
 										placeholder="enter invite code"
 									/>
-										<div className="flex items-center gap-2">
-											<Button onClick={joinByCode} disabled={teamSubmitting || !inviteCode.trim()}>
-												{teamSubmitting ? "Joining..." : "Join Team"}
-											</Button>
-											<Button variant="outline" onClick={rejectInviteByCode} disabled={teamSubmitting}>
-												{teamSubmitting ? "Submitting..." : "Reject Invite"}
-											</Button>
-										</div>
+									<div className="flex items-center gap-2">
+										<Button onClick={joinByCode} disabled={isIneligible || teamSubmitting || !inviteCode.trim()}>
+											{teamSubmitting ? "Joining..." : "Join Team"}
+										</Button>
+										<Button variant="outline" onClick={rejectInviteByCode} disabled={teamSubmitting}>
+											{teamSubmitting ? "Submitting..." : "Reject Invite"}
+										</Button>
+									</div>
 								</div>
 							</div>
 						)}
@@ -645,7 +711,9 @@ const ParticipantEventDetails = () => {
 							))}
 						</div>
 					) : null}
-					{isAlreadyRegistered ? (
+					{isIneligible ? (
+						<Button disabled variant="outline">Not eligible</Button>
+					) : isAlreadyRegistered ? (
 						<Button disabled variant="outline">Registered</Button>
 					) : (
 						<Button onClick={registerForEvent} disabled={registering}>
