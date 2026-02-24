@@ -1,0 +1,11 @@
+Felicity Event Management System - Deployment Links
+
+Frontend URL:
+https://felicity-dass-orpin.vercel.app/
+
+Backend Base API URL:
+https://felicity-hackathon-dass.onrender.com/
+
+Notes:
+- Backend root may show "Cannot GET /" because it is an API service.
+- MongoDB Atlas is used and configured via environment variables.
