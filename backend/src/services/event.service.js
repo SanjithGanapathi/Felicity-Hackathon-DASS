@@ -28,6 +28,13 @@ const queryEvent = async (queryParams) => {
 	// declare a query object 
 	const query = {};
 
+	// exclude events from disabled or archived organizers
+	const disabledOrganizers = await Organizer.find({ status: { $ne: "active" } }).select("_id");
+	const disabledOrgIds = disabledOrganizers.map((org) => org._id);
+	if (disabledOrgIds.length > 0) {
+		query.organizerId = { $nin: disabledOrgIds };
+	}
+
 	// search by event and organizer names using partial matching
 	if (search && search.trim().length > 0) {
 		// replace certain values for regex and make it case insensitive
@@ -227,6 +234,12 @@ const registerUserForEvent = async (eventId, userId, payload = {}) => {
 	}
 	if (event.isTeamEvent) {
 		throw createServiceError("This is a team event. Use team registration workflow", 400);
+	}
+
+	// block registration if organizer is disabled
+	const organizer = await Organizer.findById(event.organizerId).select("status");
+	if (organizer && organizer.status !== "active") {
+		throw createServiceError("This organizer has been disabled. Registration is not allowed", 403);
 	}
 
 	const user = await User.findById(userId);
