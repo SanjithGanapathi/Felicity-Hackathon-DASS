@@ -80,6 +80,12 @@ const getOrganizerProfileId = async (userId) => {
 		throw createServiceError("Organizer profile not found", 404);
 	}
 
+	// block all actions if organizer account is disabled or archived
+	const organizer = await Organizer.findById(organizerUser.organizerProfileId).select("status");
+	if (organizer && organizer.status !== "active") {
+		throw createServiceError("Your organizer account has been disabled", 403);
+	}
+
 	return organizerUser.organizerProfileId;
 };
 
